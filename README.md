@@ -42,7 +42,7 @@ const paragraphs = textareaValue.split(/(?<=\n)/).map(p => prepare(p, '16px Inte
 const lineCount = paragraphs.reduce((n, p) => n + layout(p, textareaWidth, 20).lineCount, 0)
 ```
 
-Other `prepare()` options are `{ wordBreak: 'keep-all' }` for CSS-like `word-break: keep-all`, and `{ letterSpacing: n }` to match CSS `letter-spacing` (`n` is treated as a px value).
+Other `prepare()` options are `{ wordBreak: 'keep-all' }` for CSS-like `word-break: keep-all`, `{ letterSpacing: n }` to match CSS `letter-spacing` (`n` is treated as a px value), and `{ fontKerning: 'auto' | 'normal' | 'none' }` to select Canvas kerning where the measurement context supports it. Kerning defaults to `'auto'`; measurements from different modes are cached separately.
 
 The returned height is the crucial last piece for unlocking web UIs:
 - proper virtualization/occlusion without guesstimates & caching
@@ -129,13 +129,13 @@ For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ 
 
 Use-case 1 APIs:
 ```ts
-prepare(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedText // one-time text analysis + measurement pass, returns an opaque value to pass to `layout()`. Make sure `font` and `letterSpacing` are synced with your CSS for the text you're measuring. `font` is the same format as what you'd use for `myCanvasContext.font = ...`, e.g. `16px Inter`; `letterSpacing` is a CSS pixel value, and must be finite.
+prepare(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number, fontKerning?: 'auto' | 'normal' | 'none' }): PreparedText // one-time text analysis + measurement pass, returns an opaque value to pass to `layout()`. Make sure `font`, `letterSpacing` and supported `fontKerning` are synced with your CSS for the text you're measuring. `font` is the same format as what you'd use for `myCanvasContext.font = ...`, e.g. `16px Inter`; `letterSpacing` is a CSS pixel value, and must be finite.
 layout(prepared: PreparedText, maxWidth: number, lineHeight: number): { height: number, lineCount: number } // calculates text height given a max width and lineHeight. Make sure `lineHeight` is synced with your css `line-height` declaration for the text you're measuring.
 ```
 
 Use-case 2 APIs:
 ```ts
-prepareWithSegments(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedTextWithSegments // same as `prepare()`, but returns a richer structure for manual line layout needs
+prepareWithSegments(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number, fontKerning?: 'auto' | 'normal' | 'none' }): PreparedTextWithSegments // same as `prepare()`, but returns a richer structure for manual line layout needs
 layoutWithLines(prepared: PreparedTextWithSegments, maxWidth: number, lineHeight: number): { height: number, lineCount: number, lines: LayoutLine[] } // high-level api for manual layout needs. Accepts a fixed max width for all lines. Similar to `layout()`'s return, but additionally returns the lines info
 walkLineRanges(prepared: PreparedTextWithSegments, maxWidth: number, onLine: (line: LayoutLineRange) => void): number // low-level api for manual layout needs. Accepts a fixed max width for all lines. Calls `onLine` once per line with its actual calculated line width and start/end cursors, without building line text strings. Very useful for certain cases where you wanna speculatively test a few width and height boundaries (e.g. binary search a nice width value by repeatedly calling walkLineRanges and checking the line count, and therefore height, is "nice" too). You can have text messages shrinkwrap and balanced text layout this way. After walkLineRanges calls, you'd call layoutWithLines once, with your satisfying max width, to get the actual lines info.
 measureLineStats(prepared: PreparedTextWithSegments, maxWidth: number): { lineCount: number, maxLineWidth: number } // returns only how many lines this width produces, and how wide the widest one is. Avoids line/string allocations.
@@ -255,7 +255,7 @@ Pretext doesn't try to be a full font rendering engine (yet?). It currently targ
 - Runtime requires Canvas 2D text measurement and Unicode property escapes (`\p{...}`), and `Intl.Segmenter` for text in Thai, Lao, Khmer, Myanmar and the other Southeast Asian scripts written without spaces. Browsers without these features aren't supported. Without Unicode property escapes, Pretext can't load and throws a `SyntaxError`; without `Intl.Segmenter`, preparing such text throws.
 - Pretext uses the canvas `font` string. Separate CSS settings such as `font-optical-sizing`, `font-feature-settings`, and `font-variation-settings` aren't supported. Variable-font settings only apply when expressed through that string, such as font weight.
 - Pass font sizes in px. If your CSS sizes text in `rem` or `em`, resolve them to px once, higher up in your app (for example, when the root font size changes), and pass that string to Pretext. Firefox measures canvas text at a rounded font size, so a fractional size like `13.33px` can wrap differently there; prefer whole-pixel sizes.
-- Pretext assumes default font kerning and word spacing. Text painted with a different `font-kerning` or `word-spacing`, including word spacing inherited from the page, can wrap differently.
+- Pretext assumes default word spacing. `fontKerning` controls the measurement context only where its Canvas implementation supports that property; unsupported implementations retain their default kerning. Selecting the same mode does not remove other Canvas/DOM shaping differences. Text painted with a different kerning mode or `word-spacing`, including word spacing inherited from the page, can wrap differently.
 - Chrome and Firefox let people set a minimum font size. Text below it paints at the minimum, while Pretext measures the size you pass. If your app uses small sizes, measure the height of an element with `font-size: 1px; line-height: 1` once and pass Pretext the larger size.
 
 ## Develop

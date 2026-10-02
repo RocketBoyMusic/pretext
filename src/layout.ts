@@ -20,6 +20,7 @@ import {
   getPreparationLanguage,
   readLetterSpacing,
   setLocaleLanguage,
+  type FontKerningMode,
 } from './measurement.js'
 import { measureAnalysis } from './prepare.js'
 import {
@@ -84,11 +85,13 @@ export type LayoutLinesResult = LayoutResult & {
 }
 
 export type WordBreakMode = AnalysisWordBreakMode
+export type { FontKerningMode } from './measurement.js'
 
 export type PrepareOptions = {
   whiteSpace?: WhiteSpaceMode
   wordBreak?: WordBreakMode
   letterSpacing?: number
+  fontKerning?: FontKerningMode // Canvas font kerning, 'auto' by default
 }
 
 // --- Public API ---
@@ -105,7 +108,7 @@ function prepareInternal(
   // One language read: break rules and measurement both follow it.
   const language = getPreparationLanguage(engineProfile)
   const analysis = analyzeText(text, engineProfile, options?.whiteSpace, wordBreak, language)
-  return measureAnalysis(analysis, font, includeSegments, letterSpacing, engineProfile, language, true)
+  return measureAnalysis(analysis, font, includeSegments, letterSpacing, engineProfile, language, true, options?.fontKerning)
 }
 
 // Prepare text for layout. Segments the text, measures each segment via canvas,
@@ -352,3 +355,4 @@ export function setLocale(locale?: string): void {
   setLocaleLanguage(locale)
   clearCache()
 }
+
