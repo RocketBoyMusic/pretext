@@ -26,6 +26,7 @@ import {
 import {
   type BreakableFitMode,
   type EngineProfile,
+  type FontKerningMode,
   type FontMeasurement,
   getCorrectedSegmentWidth,
   getEmojiCorrection,
@@ -269,11 +270,12 @@ export function measureAnalysis(
   // Whether text segments take emergency breaks between graphemes: an atomic rich item,
   // which is only laid out whole, takes none.
   overflowBreaks: boolean,
+  fontKerning: FontKerningMode = 'auto',
 ): (PreparedText & PreparedLineBreakData) | (PreparedText & PreparedSegments) {
   const { normalized, texts, starts, flags } = analysis
   const segmentCount = flags.length
   const hasLetterSpacing = letterSpacing !== 0
-  const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing)
+  const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing, fontKerning)
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
   // The advance between tab stops: eight spaces, each with its letter spacing where the
@@ -691,3 +693,4 @@ function addIdeographicSpaceHangs(
   }
   return trims
 }
+
