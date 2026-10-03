@@ -306,6 +306,7 @@ export type EngineProfile = {
 }
 
 export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-context'
+export type FontKerningMode = 'auto' | 'normal' | 'none'
 
 // The measurement context and what preparation measured through it. Canvas resolves
 // fonts under the context's language, the page's unless the context has a `lang` to
@@ -322,19 +323,21 @@ type MeasureState = {
   // the engine's Canvas turns them off under one (canvasLetterSpacingDropsLigatures).
   shapesLetterSpaced: boolean
   letterSpaced: boolean // Whether the context is set to LETTER_SPACED_SHAPING, by getFontMeasurement()
+  fontKerning: FontKerningMode // The last kerning mode requested on this context
   fonts: Map<string, FontMeasurement>
   // What letter-spaced text measures in each font where shapesLetterSpaced: the same text
   // shaped without its optional ligatures.
   letterSpacedFonts: Map<string, FontMeasurement>
 }
 let measureState: MeasureState | null = null
-// What preparation keeps per font. It all goes together, when the caches clear or the
-// language changes.
+// What preparation keeps per font and kerning mode. It all goes together when
+// the caches clear or the language changes.
 export type FontMeasurement = {
   state: MeasureState // Its context, which getFontMeasurement() sets to the font and its shaping
   // The font Canvas is given: the declared font, with the generic keywords the context's
   // language names replaced by their families.
   canvasFont: string
+  fontKerning: FontKerningMode
   metrics: Map<string, SegmentMetrics>
   // Metrics of a text item measured together with one following U+0020, keyed by
   // the item alone. The width includes that space.
@@ -683,6 +686,7 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
   ) {
     const span = document.createElement('span')
     span.style.font = font
+    span.style.fontKerning = measurement.fontKerning
     span.style.display = 'inline-block'
     span.style.visibility = 'hidden'
     span.style.position = 'absolute'
@@ -822,7 +826,7 @@ export function getSegmentFit(
 // What preparation measures a font's text through, with the context set to measure it.
 // Text under letter spacing has a measurement of its own where the context shapes it as
 // the page does: its widths, prefixes and line-edge facts all come from that shaping.
-export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean): FontMeasurement {
+export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean, fontKerning: FontKerningMode = 'auto'): FontMeasurement {
   // Preparation starts here, with the language it resolved. After that language
   // changes, start again with a new context and empty caches; clearing the caches
   // alone would re-measure with fonts resolved under the old language.
@@ -830,13 +834,18 @@ export function getFontMeasurement(font: string, language: string | null, letter
   const state = measureState
   const shaped = letterSpaced && state.shapesLetterSpaced
   const fonts = shaped ? state.letterSpacedFonts : state.fonts
-  let measurement = fonts.get(font)
+  const key = fontKerning === 'auto' ? font : `${font}\u0000${fontKerning}`
+  let measurement = fonts.get(key)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined }
-    fonts.set(font, measurement)
+    measurement = { state, canvasFont, fontKerning, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined }
+    fonts.set(key, measurement)
   }
   state.context.font = measurement.canvasFont
+  if (state.fontKerning !== measurement.fontKerning) {
+    if ('fontKerning' in state.context) state.context.fontKerning = measurement.fontKerning
+    state.fontKerning = measurement.fontKerning
+  }
   if (state.letterSpaced !== shaped) {
     state.context.letterSpacing = shaped ? LETTER_SPACED_SHAPING : '0px'
     state.letterSpaced = shaped
@@ -865,6 +874,7 @@ function createMeasureState(language: string | null): MeasureState {
     takesLetterSpacing,
     shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,
     letterSpaced: false,
+    fontKerning: 'auto',
     fonts: new Map(),
     letterSpacedFonts: new Map(),
   }
@@ -874,3 +884,4 @@ export function clearMeasurementCaches(): void {
   measureState?.fonts.clear()
   measureState?.letterSpacedFonts.clear()
 }
+
