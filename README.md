@@ -123,6 +123,8 @@ walkRichInlineLineRanges(prepared, 320, range => {
 
 Pass a flat list of items. For an image, a custom emoji, a formula or a badge inside a line, pass a box, `{ width }`: its element's margin box, padding and border included, in whole or quarter pixels, since browsers round other widths to their layout unit. A line can break on either side of a box, as at an `<img>`, and its fragment has no text; a box is an item with no `text`. For a size not known yet, prepare with a placeholder and again when it arrives; for an image capped at `max-width: 100%`, pass `min(its width, the paragraph's width)` and prepare again when that changes. Heights are yours: give each box `vertical-align: top`, and each line is as tall as the paragraph's line height or its tallest box, whichever is taller.
 
+Each text item can set `fontKerning: 'auto' | 'normal' | 'none'`, with the same Canvas support limits as ordinary preparation. Omitted modes use `'auto'`. Match each item's mode to its rendered `font-kerning`.
+
 For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ whiteSpace: 'pre-wrap' }` or `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. In `pre-wrap` every item but an atomic one keeps its spaces, tabs and newlines: spaces at a line's end hang past it whichever items hold them, tab stops count from the line's start, and a newline ends its line. Paint each line with `white-space: pre`: a line painted alone in `pre-wrap` is its paragraph's last line, where spaces at its end hang only if they don't fit and a padded item's end after them can wrap. This is not a general CSS inline formatting engine.
 
 ### API Glossary
@@ -179,6 +181,7 @@ measureRichInlineStats(prepared: PreparedRichInline, maxWidth: number): { lineCo
 type RichInlineItem = {
   text: string // raw text, including leading/trailing collapsible spaces
   font: string // canvas font shorthand for this item
+  fontKerning?: 'auto' | 'normal' | 'none' // canvas font kerning, 'auto' by default
   letterSpacing?: number // extra horizontal spacing between graphemes, in CSS px
   break?: 'normal' | 'never' // `never` keeps the item atomic (aka on one line), like a chip
   extraWidth?: number // extra width around the text, e.g. padding and borders

@@ -33,7 +33,7 @@ import {
   walkPreparedLinesRaw,
   type ItemLine,
 } from './line-break.js'
-import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing, type EngineProfile } from './measurement.js'
+import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing, type EngineProfile, type FontKerningMode } from './measurement.js'
 import { measureAnalysis } from './prepare.js'
 
 // Helper for rich-text inline flow under `white-space: normal` or `pre-wrap`.
@@ -53,6 +53,7 @@ declare const preparedRichInlineBrand: unique symbol
 export type RichInlineItem = {
   text: string // Raw author text, including any leading/trailing collapsible spaces
   font: string // Canvas font shorthand used to prepare and measure this item
+  fontKerning?: FontKerningMode // Canvas font kerning, 'auto' by default
   letterSpacing?: number // Extra horizontal spacing between graphemes, in CSS px
   break?: 'normal' | 'never' // `never` keeps the item atomic, like a pill or mention chip
   extraWidth?: number // Caller-owned horizontal chrome, e.g. padding + border width
@@ -212,8 +213,8 @@ function isLineStartCursor(cursor: LayoutCursor): boolean {
   return cursor.segmentIndex === 0 && cursor.graphemeIndex === 0
 }
 
-function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: string | null): number {
-  return getSegmentMetrics(' ', getFontMeasurement(font, language, letterSpacing !== 0)).width + letterSpacing
+function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: string | null, fontKerning: FontKerningMode = 'auto'): number {
+  return getSegmentMetrics(' ', getFontMeasurement(font, language, letterSpacing !== 0, fontKerning)).width + letterSpacing
 }
 
 // A zero-width break the Gecko profile makes of a soft hyphen after white space, which
@@ -517,7 +518,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
 
     if (start === text.length) {
       if (start > 0 && (pendingGapWidth === null || !whitespaceRunOpen)) {
-        pendingGapWidth = whitespaceRunOpen ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
+        pendingGapWidth = whitespaceRunOpen ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language, item.fontKerning)
         pendingGapItemIndex = index
         whitespaceRunOpen = true
       }
@@ -545,7 +546,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     // leading white space (nsTextFrame.cpp:10935-10944) and trim trailing (nsBlockFrame.cpp:5844).
     const ownsWhiteSpace = item.break !== 'never'
     const takesOwnSpace = hasLeadingWhitespace && !whitespaceRunOpen && ownsWhiteSpace
-    let gapBefore = takesOwnSpace ? getCollapsedSpaceWidth(item.font, letterSpacing, language) : pendingGapWidth ?? 0
+    let gapBefore = takesOwnSpace ? getCollapsedSpaceWidth(item.font, letterSpacing, language, item.fontKerning) : pendingGapWidth ?? 0
     let gapItemIndex = takesOwnSpace ? index : pendingGapWidth !== null ? pendingGapItemIndex : hasLeadingWhitespace && ownsWhiteSpace ? index : -1
     // Normalization already drops boundary whitespace, so the item's own text
     // yields the same segments while analysis keeps the source before them:
@@ -558,7 +559,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     // chip ` @bob ` 6.6px narrower than the chip's text with its spaces.
     const itemBreak = item.break ?? 'normal'
     const analysis = analyzeText(item.text, profile, itemBreak === 'never' ? 'normal' : whiteSpace, wordBreak, language)
-    const prepared = measureAnalysis(analysis, item.font, true, letterSpacing, profile, language, itemBreak !== 'never') as PreparedSegments
+    const prepared = measureAnalysis(analysis, item.font, true, letterSpacing, profile, language, itemBreak !== 'never', item.fontKerning) as PreparedSegments
     const { segmentFlags } = prepared
     // A collapsible space before a hard break goes with the line's end (CSS Text 3
     // §4.1.2), so an item that starts with one has no gap before it.
@@ -727,7 +728,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     const gapsTrailingWhitespace = hasTrailingWhitespace && ownsWhiteSpace
     pendingGapWidth = !gapsTrailingWhitespace
       ? null
-      : runGoesOn ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
+      : runGoesOn ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language, item.fontKerning)
     pendingGapItemIndex = gapsTrailingWhitespace ? index : -1
     whitespaceRunOpen = runGoesOn || gapsTrailingWhitespace
   }
@@ -1625,3 +1626,4 @@ export function measureRichInlineStats(
     if (lineWidth > maxLineWidth) maxLineWidth = lineWidth
   }
 }
+

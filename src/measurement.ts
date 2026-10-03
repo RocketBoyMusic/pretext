@@ -323,6 +323,7 @@ type MeasureState = {
   // the engine's Canvas turns them off under one (canvasLetterSpacingDropsLigatures).
   shapesLetterSpaced: boolean
   letterSpaced: boolean // Whether the context is set to LETTER_SPACED_SHAPING, by getFontMeasurement()
+  fontKerning: FontKerningMode // The last kerning mode requested on this context
   fonts: Map<string, FontMeasurement>
   // What letter-spaced text measures in each font where shapesLetterSpaced: the same text
   // shaped without its optional ligatures.
@@ -841,7 +842,10 @@ export function getFontMeasurement(font: string, language: string | null, letter
     fonts.set(key, measurement)
   }
   state.context.font = measurement.canvasFont
-  if ('fontKerning' in state.context) state.context.fontKerning = measurement.fontKerning
+  if (state.fontKerning !== measurement.fontKerning) {
+    if ('fontKerning' in state.context) state.context.fontKerning = measurement.fontKerning
+    state.fontKerning = measurement.fontKerning
+  }
   if (state.letterSpaced !== shaped) {
     state.context.letterSpacing = shaped ? LETTER_SPACED_SHAPING : '0px'
     state.letterSpaced = shaped
@@ -870,6 +874,7 @@ function createMeasureState(language: string | null): MeasureState {
     takesLetterSpacing,
     shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,
     letterSpaced: false,
+    fontKerning: 'auto',
     fonts: new Map(),
     letterSpacedFonts: new Map(),
   }
